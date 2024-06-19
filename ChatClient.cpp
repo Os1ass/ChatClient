@@ -8,6 +8,7 @@ HWND hEditRecv;
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
+    setlocale(LC_ALL, "RUSSIAN");
     const wchar_t CLASS_NAME[] = L"ChatClientWindowClass";
 
     WNDCLASS wc = { };
@@ -79,12 +80,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         if (LOWORD(wParam) == 1) // Send button
         {
-            wchar_t buffer[BUFFER_SIZE];
-            GetWindowText(hEditSend, buffer, BUFFER_SIZE);
-            std::wstring ws(buffer);
-            std::string message(ws.begin(), ws.end());
-            SendMessageToServer(message);
+            wchar_t* wbuffer = new wchar_t[BUFFER_SIZE];
+            GetWindowText(hEditSend, wbuffer, BUFFER_SIZE);
+
+            size_t bufferSize;
+            char* buffer = new char[BUFFER_SIZE];
+            wcstombs_s(&bufferSize, buffer, BUFFER_SIZE, wbuffer, _TRUNCATE);
+            SendMessageToServer(buffer, bufferSize);
             SetWindowText(hEditSend, L"");
+
+            delete[] wbuffer;
+            delete[] buffer;
         }
         else if (LOWORD(wParam) == 2) // Connect button
         {
@@ -169,14 +175,14 @@ void DisconnectFromServer()
     WSACleanup();
 }
 
-void SendMessageToServer(const std::string& message)
+void SendMessageToServer(const char* message, const size_t messageSize)
 {
     if (ConnectSocket == INVALID_SOCKET) {
         AppendText(hEditRecv, "Not connected to server.\r\n");
         return;
     }
 
-    int iResult = send(ConnectSocket, message.c_str(), (int)message.length(), 0);
+    int iResult = send(ConnectSocket, message, messageSize, 0);
     if (iResult == SOCKET_ERROR) {
         AppendText(hEditRecv, "send failed.\r\n");
         closesocket(ConnectSocket);
@@ -200,10 +206,18 @@ void SendMessageToServer(const std::string& message)
 
 void AppendText(HWND hwnd, const std::string& text)
 {
-    /*int len = GetWindowTextLength(hwnd);
-    SendMessage(hwnd, EM_SETSEL, (WPARAM)len, (LPARAM)len);
-    SendMessage(hwnd, EM_REPLACESEL, 0, (LPARAM)text.c_str());*/
-    std::wstring stemp = std::wstring(text.begin(), text.end());
-    LPCWSTR sw = stemp.c_str();
-    SetWindowText(hwnd, sw);
+    size_t textSize;
+    wchar_t* wtext = new wchar_t[BUFFER_SIZE];
+    mbstowcs_s(&textSize, wtext, BUFFER_SIZE, text.c_str(), _TRUNCATE);
+
+    wchar_t* windowText = new wchar_t[BUFFER_SIZE];
+    int windowTextLength = GetWindowTextLength(hwnd);
+    GetWindowText(hwnd, windowText, BUFFER_SIZE);
+
+    wcscat_s(wtext, BUFFER_SIZE, windowText);
+    SetWindowText(hwnd, wtext);
+
+    delete[] windowText;
+    delete[] wtext;
+
 }
