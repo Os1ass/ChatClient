@@ -1,10 +1,48 @@
 #include "ChatClient.h"
 #include <string>
 #include <iostream>
+#include <codecvt>
 
 SOCKET ConnectSocket = INVALID_SOCKET;
 HWND hEditSend;
 HWND hEditRecv;
+
+std::wstring userNickname;
+
+std::string ws2s(const std::wstring& wstr)
+{
+    using convert_typeX = std::codecvt_utf8<wchar_t>;
+    std::wstring_convert<convert_typeX, wchar_t> converterX;
+
+    return converterX.to_bytes(wstr);
+}
+
+BOOL CALLBACK DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+    case WM_INITDIALOG:
+        return TRUE;
+    case WM_COMMAND:
+        switch (LOWORD(wParam)) {
+        case ID_OK: {
+            wchar_t buffer[256];
+            GetDlgItemText(hwndDlg, ID_EDIT, buffer, sizeof(buffer));
+            if (wcslen(buffer) > 0) {
+                userNickname = buffer;
+                EndDialog(hwndDlg, IDOK);
+            } else {
+                MessageBox(hwndDlg, L"Please enter a nickname.", L"Error", MB_OK | MB_ICONERROR);
+            }
+            return TRUE;
+        }
+        }
+        break;
+    }
+    return FALSE;
+}
+
+void ShowNicknameDialog(HWND hwndParent, HINSTANCE hInstance) {
+    DialogBoxW(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), hwndParent, (DLGPROC)DlgProc);
+}
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
@@ -34,6 +72,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     ShowWindow(hwnd, nCmdShow);
 
+    ShowNicknameDialog(hwnd, hInstance);
+    AppendText(hEditRecv, ws2s(L"Hello, " + userNickname));
+
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
     {
@@ -52,7 +93,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         CreateWindow(L"STATIC", L"Messages:", WS_VISIBLE | WS_CHILD,
             10, 10, 460, 20, hwnd, NULL, NULL, NULL);
-        hEditRecv = CreateWindowW(L"EDIT", NULL,
+        hEditRecv = CreateWindow(L"EDIT", NULL,
             WS_VISIBLE | WS_CHILD | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
             10, 30, 460, 250, hwnd, NULL, NULL, NULL);
 
