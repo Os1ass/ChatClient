@@ -7,29 +7,32 @@ SOCKET ConnectSocket = INVALID_SOCKET;
 HWND hEditSend;
 HWND hEditRecv;
 
-std::wstring userNickname;
-
-std::string ws2s(const std::wstring& wstr)
-{
-    using convert_typeX = std::codecvt_utf8<wchar_t>;
-    std::wstring_convert<convert_typeX, wchar_t> converterX;
-
-    return converterX.to_bytes(wstr);
-}
+std::string userNickname;
 
 BOOL CALLBACK DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam) {
-    switch (message) {
+    switch (message) 
+    {
     case WM_INITDIALOG:
         return TRUE;
+
     case WM_COMMAND:
-        switch (LOWORD(wParam)) {
-        case ID_OK: {
-            wchar_t buffer[256];
-            GetDlgItemText(hwndDlg, ID_EDIT, buffer, sizeof(buffer));
-            if (wcslen(buffer) > 0) {
+        switch (LOWORD(wParam)) 
+        {
+        case IDOK: 
+        {
+            wchar_t wbuffer[BUFFER_SIZE];
+            GetDlgItemText(hwndDlg, IDC_EDIT1, wbuffer, BUFFER_SIZE);
+
+            if (wcslen(wbuffer) > 0) 
+            {
+                size_t bufferSize;
+                char* buffer = new char[BUFFER_SIZE];
+                wcstombs_s(&bufferSize, buffer, BUFFER_SIZE, wbuffer, _TRUNCATE);
                 userNickname = buffer;
+                delete[] buffer;
                 EndDialog(hwndDlg, IDOK);
-            } else {
+            } else 
+            {
                 MessageBox(hwndDlg, L"Please enter a nickname.", L"Error", MB_OK | MB_ICONERROR);
             }
             return TRUE;
@@ -41,7 +44,7 @@ BOOL CALLBACK DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 }
 
 void ShowNicknameDialog(HWND hwndParent, HINSTANCE hInstance) {
-    DialogBoxW(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), hwndParent, (DLGPROC)DlgProc);
+    DialogBox(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), hwndParent, (DLGPROC)DlgProc);
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
@@ -73,7 +76,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     ShowWindow(hwnd, nCmdShow);
 
     ShowNicknameDialog(hwnd, hInstance);
-    AppendText(hEditRecv, ws2s(L"Hello, " + userNickname));
+    AppendText(hEditRecv, "Hello, " + userNickname);
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
@@ -204,6 +207,7 @@ void ConnectToServer()
     }
 
     AppendText(hEditRecv, "Connected to server.\r\n");
+    send(ConnectSocket, userNickname.c_str(), userNickname.length(), 0);
 }
 
 void DisconnectFromServer()
