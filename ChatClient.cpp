@@ -2,12 +2,16 @@
 #include <string>
 #include <iostream>
 #include <codecvt>
+#include <atomic>
 
 SOCKET ConnectSocket = INVALID_SOCKET;
+HANDLE workerThread  = INVALID_HANDLE_VALUE;
 HWND hEditSend;
 HWND hEditRecv;
-
+BOOL cancellationToken;
 std::string userNickname;
+
+DWORD WINAPI WorkerThread(LPVOID lpParam);
 
 BOOL CALLBACK DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) 
@@ -51,6 +55,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 {
     setlocale(LC_ALL, "RUSSIAN");
     const wchar_t CLASS_NAME[] = L"ChatClientWindowClass";
+    cancellationToken = false;
 
     WNDCLASS wc = { };
     wc.lpfnWndProc = WindowProc;
@@ -138,7 +143,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         else if (LOWORD(wParam) == 2) // Connect button
         {
-            ConnectToServer();
+            if (workerThread == INVALID_HANDLE_VALUE)
+                ConnectToServer();
+            else
+                AppendText(hEditRecv, "You are already connected to server.\r\n");
         }
         else if (LOWORD(wParam) == 3) // Disconnect button
         {
@@ -208,14 +216,34 @@ void ConnectToServer()
 
     AppendText(hEditRecv, "Connected to server.\r\n");
     send(ConnectSocket, userNickname.c_str(), userNickname.length(), 0);
+    workerThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WorkerThread, NULL, 0, NULL);
+}
+
+DWORD WINAPI WorkerThread(LPVOID lpParam)
+{
+    char recvbuf[BUFFER_SIZE];
+    int iResult;
+    while (!cancellationToken)
+    {
+        iResult = recv(ConnectSocket, recvbuf, BUFFER_SIZE, 0);
+        if (iResult > 0)
+        {
+            recvbuf[iResult] = '\0';
+            AppendText(hEditRecv, (std::string)recvbuf + "\r\n");
+            OutputDebugStringA(recvbuf);
+        }
+    }
+    return 0;
 }
 
 void DisconnectFromServer()
 {
     if (ConnectSocket != INVALID_SOCKET) {
+        cancellationToken = true;
         closesocket(ConnectSocket);
         ConnectSocket = INVALID_SOCKET;
         AppendText(hEditRecv, "Disconnected from server.\r\n");
+        workerThread = INVALID_HANDLE_VALUE;
     }
     WSACleanup();
 }
@@ -230,22 +258,8 @@ void SendMessageToServer(const char* message, const size_t messageSize)
     int iResult = send(ConnectSocket, message, messageSize, 0);
     if (iResult == SOCKET_ERROR) {
         AppendText(hEditRecv, "send failed.\r\n");
-        closesocket(ConnectSocket);
         WSACleanup();
         return;
-    }
-
-    char recvbuf[BUFFER_SIZE];
-    iResult = recv(ConnectSocket, recvbuf, BUFFER_SIZE, 0);
-    if (iResult > 0) {
-        recvbuf[iResult] = '\0';
-        AppendText(hEditRecv, std::string("Server: ") + recvbuf + "\r\n");
-    }
-    else if (iResult == 0) {
-        AppendText(hEditRecv, "Connection closed.\r\n");
-    }
-    else {
-        AppendText(hEditRecv, "recv failed.\r\n");
     }
 }
 
