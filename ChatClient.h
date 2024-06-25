@@ -15,7 +15,8 @@
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void ConnectToServer();
 void DisconnectFromServer();
-void SendMessageToServer(const char* message, const size_t messageSize);
+void SendMessageToServer(std::string message);
+int RecieveMessageFromServer(std::string& message);
 void AppendText(HWND hwnd, const std::string& text);
 
 extern SOCKET ConnectSocket;

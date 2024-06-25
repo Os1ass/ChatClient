@@ -11,6 +11,11 @@ HWND hEditRecv;
 BOOL cancellationToken;
 std::string userNickname;
 
+const BYTE magicNumber[4] = { 0xAA, 0xBB, 0xCC, 0xDD };
+const std::string magicNumberString(reinterpret_cast<const char*>(magicNumber), sizeof(magicNumber));
+// magicNumber + message + magicNumber
+// identifiation for socket send/recv
+
 DWORD WINAPI WorkerThread(LPVOID lpParam);
 
 BOOL CALLBACK DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -55,6 +60,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 {
     setlocale(LC_ALL, "RUSSIAN");
     const wchar_t CLASS_NAME[] = L"ChatClientWindowClass";
+    OutputDebugString(L"Magic number string:");
+    OutputDebugStringA(magicNumberString.c_str());
     cancellationToken = false;
 
     WNDCLASS wc = { };
@@ -135,7 +142,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             size_t bufferSize;
             char* buffer = new char[BUFFER_SIZE];
             wcstombs_s(&bufferSize, buffer, BUFFER_SIZE, wbuffer, _TRUNCATE);
-            SendMessageToServer(buffer, bufferSize);
+            SendMessageToServer(std::string(buffer, strlen(buffer)));
             SetWindowText(hEditSend, L"");
 
             delete[] wbuffer;
@@ -215,22 +222,21 @@ void ConnectToServer()
     }
 
     AppendText(hEditRecv, "Connected to server.\r\n");
-    send(ConnectSocket, userNickname.c_str(), userNickname.length(), 0);
+    SendMessageToServer(userNickname);
     workerThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WorkerThread, NULL, 0, NULL);
 }
 
 DWORD WINAPI WorkerThread(LPVOID lpParam)
 {
-    char recvbuf[BUFFER_SIZE];
+    std::string message;
     int iResult;
     while (!cancellationToken)
     {
-        iResult = recv(ConnectSocket, recvbuf, BUFFER_SIZE, 0);
+        iResult = RecieveMessageFromServer(message);
         if (iResult > 0)
         {
-            recvbuf[iResult] = '\0';
-            AppendText(hEditRecv, (std::string)recvbuf + "\r\n");
-            OutputDebugStringA(recvbuf);
+            AppendText(hEditRecv, message + "\r\n");
+            OutputDebugStringA(message.c_str());
         }
     }
     return 0;
@@ -248,19 +254,45 @@ void DisconnectFromServer()
     WSACleanup();
 }
 
-void SendMessageToServer(const char* message, const size_t messageSize)
+void SendMessageToServer(std::string message)
 {
     if (ConnectSocket == INVALID_SOCKET) {
         AppendText(hEditRecv, "Not connected to server.\r\n");
         return;
     }
 
-    int iResult = send(ConnectSocket, message, messageSize, 0);
+    message = magicNumberString + message + magicNumberString;
+    int iResult = send(ConnectSocket, message.c_str(), message.length(), 0);
     if (iResult == SOCKET_ERROR) {
-        AppendText(hEditRecv, "send failed.\r\n");
+        AppendText(hEditRecv, "Send failed.\r\n");
         WSACleanup();
         return;
     }
+}
+
+int RecieveMessageFromServer(std::string& message)
+{
+    char buffer[BUFFER_SIZE];
+    int iResult = recv(ConnectSocket, buffer, BUFFER_SIZE, 0);
+    if (iResult <= magicNumberString.length() * 2 ||
+        iResult <= 0)
+    {
+        return 0;
+    }
+
+    std::string bufferStr(buffer, iResult);
+    if (bufferStr.substr(0, 4) != magicNumberString ||
+        bufferStr.substr(bufferStr.length() - 4, 4) != magicNumberString)
+    {
+        return 0;
+    }
+
+    message = bufferStr.substr(4, bufferStr.length() - 8);
+    return iResult;
+    /*if (iResult == 0)
+        return iResult;
+    message = std::string(buffer, iResult);
+    return iResult;*/
 }
 
 void AppendText(HWND hwnd, const std::string& text)
