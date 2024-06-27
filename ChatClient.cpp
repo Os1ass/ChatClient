@@ -60,8 +60,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 {
     setlocale(LC_ALL, "RUSSIAN");
     const wchar_t CLASS_NAME[] = L"ChatClientWindowClass";
-    OutputDebugString(L"Magic number string:");
-    OutputDebugStringA(magicNumberString.c_str());
     cancellationToken = false;
 
     WNDCLASS wc = { };
@@ -289,10 +287,6 @@ int RecieveMessageFromServer(std::string& message)
 
     message = bufferStr.substr(4, bufferStr.length() - 8);
     return iResult;
-    /*if (iResult == 0)
-        return iResult;
-    message = std::string(buffer, iResult);
-    return iResult;*/
 }
 
 void AppendText(HWND hwnd, const std::string& text)
@@ -310,5 +304,4 @@ void AppendText(HWND hwnd, const std::string& text)
 
     delete[] windowText;
     delete[] wtext;
-
 }
