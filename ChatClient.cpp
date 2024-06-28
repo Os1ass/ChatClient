@@ -73,7 +73,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         0,
         CLASS_NAME,
         L"Chat Client",
-        WS_OVERLAPPEDWINDOW,
+        WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME,
         CW_USEDEFAULT, CW_USEDEFAULT, 500, 400,
         NULL, NULL, hInstance, NULL
     );
@@ -107,7 +107,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         CreateWindow(L"STATIC", L"Messages:", WS_VISIBLE | WS_CHILD,
             10, 10, 460, 20, hwnd, NULL, NULL, NULL);
         hEditRecv = CreateWindow(L"EDIT", NULL,
-            WS_VISIBLE | WS_CHILD | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
+            WS_HSCROLL | WS_VSCROLL | WS_VISIBLE | WS_CHILD | 
+            WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
             10, 30, 460, 250, hwnd, NULL, NULL, NULL);
 
         CreateWindow(L"STATIC", L"Enter Message:", WS_VISIBLE | WS_CHILD,
