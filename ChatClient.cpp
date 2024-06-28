@@ -244,10 +244,16 @@ void DisconnectFromServer()
 {
     if (ConnectSocket != INVALID_SOCKET) {
         cancellationToken = true;
+        shutdown(ConnectSocket, SD_BOTH);
+        if (WaitForSingleObject(workerThread, 5000) != WAIT_OBJECT_0)
+        {
+            TerminateThread(workerThread, 1);
+        }
+        CloseHandle(workerThread);
         closesocket(ConnectSocket);
         ConnectSocket = INVALID_SOCKET;
-        AppendText(hEditRecv, "Disconnected from server.\r\n");
         workerThread = INVALID_HANDLE_VALUE;
+        AppendText(hEditRecv, "Disconnected from server.\r\n");
     }
     WSACleanup();
 }
