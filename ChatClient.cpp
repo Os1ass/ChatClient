@@ -4,12 +4,15 @@
 #include <codecvt>
 #include <atomic>
 
-SOCKET ConnectSocket = INVALID_SOCKET;
-HANDLE workerThread  = INVALID_HANDLE_VALUE;
-HWND hEditSend;
-HWND hEditRecv;
-BOOL cancellationToken;
-std::string userNickname;
+SOCKET g_connectSocket = INVALID_SOCKET;
+HANDLE g_workerThread  = INVALID_HANDLE_VALUE;
+HWND g_hEditSend;
+HWND g_hEditRecv;
+BOOL g_cancellationToken;
+std::string g_userNickname = "";
+std::string g_serverIpAdress = "127.0.0.1";
+std::string g_serverPort = "26999";
+HINSTANCE g_hInstance;
 
 const BYTE magicNumber[4] = { 0xAA, 0xBB, 0xCC, 0xDD };
 const std::string magicNumberString(reinterpret_cast<const char*>(magicNumber), sizeof(magicNumber));
@@ -22,29 +25,78 @@ BOOL CALLBACK DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam) 
     switch (message) 
     {
     case WM_INITDIALOG:
-        return TRUE;
+        SetDlgItemTextA(hwndDlg, IDC_EDIT1, g_userNickname.c_str());
+        SetDlgItemTextA(hwndDlg, IDC_EDIT2, g_serverIpAdress.c_str());
+        SetDlgItemTextA(hwndDlg, IDC_EDIT3, g_serverPort.c_str());
+        return FALSE;
 
     case WM_COMMAND:
-        switch (LOWORD(wParam)) 
+        switch (LOWORD(wParam))
         {
-        case IDOK: 
+        case IDOK:
         {
             wchar_t wbuffer[BUFFER_SIZE];
             GetDlgItemText(hwndDlg, IDC_EDIT1, wbuffer, BUFFER_SIZE);
 
-            if (wcslen(wbuffer) > 0) 
+            if (wcslen(wbuffer) > 0)
             {
                 size_t bufferSize;
                 char* buffer = new char[BUFFER_SIZE];
                 wcstombs_s(&bufferSize, buffer, BUFFER_SIZE, wbuffer, _TRUNCATE);
-                userNickname = buffer;
+                g_userNickname = buffer;
                 delete[] buffer;
-                EndDialog(hwndDlg, IDOK);
-            } else 
+            }
+            else
             {
                 MessageBox(hwndDlg, L"Please enter a nickname.", L"Error", MB_OK | MB_ICONERROR);
+                return FALSE;
             }
-            return TRUE;
+
+            wbuffer[0] = '\0';
+            GetDlgItemText(hwndDlg, IDC_EDIT2, wbuffer, BUFFER_SIZE);
+
+            if (wcslen(wbuffer) > 0)
+            {
+                size_t bufferSize;
+                char* buffer = new char[BUFFER_SIZE];
+                wcstombs_s(&bufferSize, buffer, BUFFER_SIZE, wbuffer, _TRUNCATE);
+                g_serverIpAdress = buffer;
+                delete[] buffer;
+            }
+            else
+            {
+                MessageBox(hwndDlg, L"Please enter a server ip adress.", L"Error", MB_OK | MB_ICONERROR);
+                return FALSE;
+            }
+
+            wbuffer[0] = '\0';
+            GetDlgItemText(hwndDlg, IDC_EDIT3, wbuffer, BUFFER_SIZE);
+
+            if (wcslen(wbuffer) > 0)
+            {
+                size_t bufferSize;
+                char* buffer = new char[BUFFER_SIZE];
+                wcstombs_s(&bufferSize, buffer, BUFFER_SIZE, wbuffer, _TRUNCATE);
+                g_serverPort = buffer;
+                delete[] buffer;
+
+            }
+            else
+            {
+                MessageBox(hwndDlg, L"Please enter a server port.", L"Error", MB_OK | MB_ICONERROR);
+                return FALSE;
+            }
+
+            EndDialog(hwndDlg, IDOK);
+            return FALSE;
+        }
+        case WM_DESTROY:
+        {
+            if (wParam != IDOK)
+            {
+                PostQuitMessage(0);
+            }
+            return FALSE;
         }
         }
         break;
@@ -58,9 +110,10 @@ void ShowNicknameDialog(HWND hwndParent, HINSTANCE hInstance) {
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
+    g_hInstance = hInstance;
     setlocale(LC_ALL, "RUSSIAN");
     const wchar_t CLASS_NAME[] = L"ChatClientWindowClass";
-    cancellationToken = false;
+    g_cancellationToken = false;
 
     WNDCLASS wc = { };
     wc.lpfnWndProc = WindowProc;
@@ -74,7 +127,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         CLASS_NAME,
         L"Chat Client",
         WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME,
-        CW_USEDEFAULT, CW_USEDEFAULT, 500, 400,
+        CW_USEDEFAULT, CW_USEDEFAULT, 500, 430,
         NULL, NULL, hInstance, NULL
     );
 
@@ -83,10 +136,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         return 0;
     }
 
+    HMENU hMenu = CreateMenu();
+    AppendMenu(hMenu, MF_STRING, IDM_SETTINGS, L"Settings");
+    AppendMenu(hMenu, MF_STRING, IDM_ABOUT, L"About");
+    SetMenu(hwnd, hMenu);
+
     ShowWindow(hwnd, nCmdShow);
 
     ShowNicknameDialog(hwnd, hInstance);
-    AppendText(hEditRecv, "Hello, " + userNickname);
+    AppendText(g_hEditRecv, "Hello, " + g_userNickname);
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
@@ -106,14 +164,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         CreateWindow(L"STATIC", L"Messages:", WS_VISIBLE | WS_CHILD,
             10, 10, 460, 20, hwnd, NULL, NULL, NULL);
-        hEditRecv = CreateWindow(L"EDIT", NULL,
+        g_hEditRecv = CreateWindow(L"EDIT", NULL,
             WS_HSCROLL | WS_VSCROLL | WS_VISIBLE | WS_CHILD | 
             WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
             10, 30, 460, 250, hwnd, NULL, NULL, NULL);
 
         CreateWindow(L"STATIC", L"Enter Message:", WS_VISIBLE | WS_CHILD,
             10, 290, 460, 20, hwnd, NULL, NULL, NULL);
-        hEditSend = CreateWindow(L"EDIT", NULL,
+        g_hEditSend = CreateWindow(L"EDIT", NULL,
             WS_VISIBLE | WS_CHILD | WS_BORDER,
             10, 310, 360, 20, hwnd, NULL, NULL, NULL);
 
@@ -128,43 +186,60 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         CreateWindow(L"BUTTON", L"Disconnect",
             WS_VISIBLE | WS_CHILD | WS_BORDER,
             110, 340, 90, 20, hwnd, (HMENU)3, NULL, NULL);
+
+        return FALSE;
     }
-    return 0;
 
     case WM_COMMAND:
     {
-        if (LOWORD(wParam) == 1) // Send button
+        switch (LOWORD(wParam))
+        {
+        case 1: //send button
         {
             wchar_t* wbuffer = new wchar_t[BUFFER_SIZE];
-            GetWindowText(hEditSend, wbuffer, BUFFER_SIZE);
+            GetWindowText(g_hEditSend, wbuffer, BUFFER_SIZE);
 
             size_t bufferSize;
             char* buffer = new char[BUFFER_SIZE];
             wcstombs_s(&bufferSize, buffer, BUFFER_SIZE, wbuffer, _TRUNCATE);
             SendMessageToServer(std::string(buffer, strlen(buffer)));
-            SetWindowText(hEditSend, L"");
+            SetWindowText(g_hEditSend, L"");
 
             delete[] wbuffer;
             delete[] buffer;
+            return FALSE;
         }
-        else if (LOWORD(wParam) == 2) // Connect button
+        case 2: //connect button
         {
-            if (workerThread == INVALID_HANDLE_VALUE)
+            if (g_workerThread == INVALID_HANDLE_VALUE)
                 ConnectToServer();
             else
-                AppendText(hEditRecv, "You are already connected to server.\r\n");
+                AppendText(g_hEditRecv, "You are already connected to server.\r\n");
+            return FALSE;
         }
-        else if (LOWORD(wParam) == 3) // Disconnect button
+        case 3: //disconnect button
         {
             DisconnectFromServer();
+            return FALSE;
         }
+        case IDM_SETTINGS:
+        {
+            ShowNicknameDialog(hwnd, g_hInstance);
+            return FALSE;
+        }
+        case IDM_ABOUT:
+        {
+            MessageBox(hwnd, L"ToDo", L"Error", MB_OK | MB_ICONERROR);
+            return FALSE;
+        }
+        }
+        return FALSE;
     }
-    return 0;
 
     case WM_DESTROY:
         DisconnectFromServer();
         PostQuitMessage(0);
-        return 0;
+        return FALSE;
     }
 
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
@@ -177,7 +252,7 @@ void ConnectToServer()
 
     iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (iResult != 0) {
-        AppendText(hEditRecv, "WSAStartup failed.\r\n");
+        AppendText(g_hEditRecv, "WSAStartup failed.\r\n");
         return;
     }
 
@@ -187,26 +262,26 @@ void ConnectToServer()
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
-    iResult = getaddrinfo("127.0.0.1", DEFAULT_PORT, &hints, &result);
+    iResult = getaddrinfo(g_serverIpAdress.c_str(), g_serverPort.c_str(), &hints, &result);
     if (iResult != 0) {
-        AppendText(hEditRecv, "getaddrinfo failed.\r\n");
+        AppendText(g_hEditRecv, "getaddrinfo failed.\r\n");
         WSACleanup();
         return;
     }
 
     for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
-        ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-        if (ConnectSocket == INVALID_SOCKET) {
-            AppendText(hEditRecv, "Error at socket().\r\n");
+        g_connectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
+        if (g_connectSocket == INVALID_SOCKET) {
+            AppendText(g_hEditRecv, "Error at socket().\r\n");
             freeaddrinfo(result);
             WSACleanup();
             return;
         }
 
-        iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+        iResult = connect(g_connectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
         if (iResult == SOCKET_ERROR) {
-            closesocket(ConnectSocket);
-            ConnectSocket = INVALID_SOCKET;
+            closesocket(g_connectSocket);
+            g_connectSocket = INVALID_SOCKET;
             continue;
         }
         break;
@@ -214,27 +289,27 @@ void ConnectToServer()
 
     freeaddrinfo(result);
 
-    if (ConnectSocket == INVALID_SOCKET) {
-        AppendText(hEditRecv, "Unable to connect to server.\r\n");
+    if (g_connectSocket == INVALID_SOCKET) {
+        AppendText(g_hEditRecv, "Unable to connect to server.\r\n");
         WSACleanup();
         return;
     }
 
-    AppendText(hEditRecv, "Connected to server.\r\n");
-    SendMessageToServer(userNickname);
-    workerThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WorkerThread, NULL, 0, NULL);
+    AppendText(g_hEditRecv, "Connected to server.\r\n");
+    SendMessageToServer(g_userNickname);
+    g_workerThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WorkerThread, NULL, 0, NULL);
 }
 
 DWORD WINAPI WorkerThread(LPVOID lpParam)
 {
     std::string message;
     int iResult;
-    while (!cancellationToken)
+    while (!g_cancellationToken)
     {
         iResult = RecieveMessageFromServer(message);
         if (iResult > 0)
         {
-            AppendText(hEditRecv, message + "\r\n");
+            AppendText(g_hEditRecv, message + "\r\n");
             OutputDebugStringA(message.c_str());
         }
     }
@@ -243,33 +318,33 @@ DWORD WINAPI WorkerThread(LPVOID lpParam)
 
 void DisconnectFromServer()
 {
-    if (ConnectSocket != INVALID_SOCKET) {
-        cancellationToken = true;
-        shutdown(ConnectSocket, SD_BOTH);
-        if (WaitForSingleObject(workerThread, 5000) != WAIT_OBJECT_0)
+    if (g_connectSocket != INVALID_SOCKET) {
+        g_cancellationToken = true;
+        shutdown(g_connectSocket, SD_BOTH);
+        if (WaitForSingleObject(g_workerThread, 5000) != WAIT_OBJECT_0)
         {
-            TerminateThread(workerThread, 1);
+            TerminateThread(g_workerThread, 1);
         }
-        CloseHandle(workerThread);
-        closesocket(ConnectSocket);
-        ConnectSocket = INVALID_SOCKET;
-        workerThread = INVALID_HANDLE_VALUE;
-        AppendText(hEditRecv, "Disconnected from server.\r\n");
+        CloseHandle(g_workerThread);
+        closesocket(g_connectSocket);
+        g_connectSocket = INVALID_SOCKET;
+        g_workerThread = INVALID_HANDLE_VALUE;
+        AppendText(g_hEditRecv, "Disconnected from server.\r\n");
     }
     WSACleanup();
 }
 
 void SendMessageToServer(std::string message)
 {
-    if (ConnectSocket == INVALID_SOCKET) {
-        AppendText(hEditRecv, "Not connected to server.\r\n");
+    if (g_connectSocket == INVALID_SOCKET) {
+        AppendText(g_hEditRecv, "Not connected to server.\r\n");
         return;
     }
 
     message = magicNumberString + message + magicNumberString;
-    int iResult = send(ConnectSocket, message.c_str(), message.length(), 0);
+    int iResult = send(g_connectSocket, message.c_str(), message.length(), 0);
     if (iResult == SOCKET_ERROR) {
-        AppendText(hEditRecv, "Send failed.\r\n");
+        AppendText(g_hEditRecv, "Send failed.\r\n");
         WSACleanup();
         return;
     }
@@ -278,7 +353,7 @@ void SendMessageToServer(std::string message)
 int RecieveMessageFromServer(std::string& message)
 {
     char buffer[BUFFER_SIZE];
-    int iResult = recv(ConnectSocket, buffer, BUFFER_SIZE, 0);
+    int iResult = recv(g_connectSocket, buffer, BUFFER_SIZE, 0);
     if (iResult <= magicNumberString.length() * 2 ||
         iResult <= 0)
     {

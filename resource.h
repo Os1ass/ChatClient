@@ -4,6 +4,10 @@
 //
 #define IDD_DIALOG1                     101
 #define IDC_EDIT1                       1001
+#define IDC_EDIT2                       1002
+#define IDC_EDIT3                       1003
+#define IDM_SETTINGS					1004
+#define IDM_ABOUT						1005
 
 // Next default values for new objects
 // 

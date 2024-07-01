@@ -9,7 +9,6 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-#define DEFAULT_PORT "26999"
 #define BUFFER_SIZE 4096
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -19,6 +18,6 @@ void SendMessageToServer(std::string message);
 int RecieveMessageFromServer(std::string& message);
 void AppendText(HWND hwnd, const std::string& text);
 
-extern SOCKET ConnectSocket;
-extern HWND hEditSend;
-extern HWND hEditRecv;
+extern SOCKET g_connectSocket;
+extern HWND g_hEditSend;
+extern HWND g_hEditRecv;
