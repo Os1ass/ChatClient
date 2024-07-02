@@ -224,6 +224,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         case IDM_SETTINGS:
         {
+            if (g_workerThread != INVALID_HANDLE_VALUE)
+            {
+                MessageBox(hwnd, L"First disconnect from server", L"Settings", MB_OK | MB_ICONINFORMATION);
+                return FALSE;
+            }
             ShowNicknameDialog(hwnd, g_hInstance);
             return FALSE;
         }
@@ -295,9 +300,17 @@ void ConnectToServer()
         return;
     }
 
-    AppendText(g_hEditRecv, "Connected to server.\r\n");
     SendMessageToServer(g_userNickname);
-    g_workerThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WorkerThread, NULL, 0, NULL);
+    std::string greeting;
+    if (RecieveMessageFromServer(greeting) == 0)
+    {
+        AppendText(g_hEditRecv, "Can't connect to the server, name " + g_userNickname + " already in use.\r\n");
+    }
+    else
+    {
+        AppendText(g_hEditRecv, greeting + "\r\n");
+        g_workerThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WorkerThread, NULL, 0, NULL);
+    }
 }
 
 DWORD WINAPI WorkerThread(LPVOID lpParam)
@@ -309,6 +322,11 @@ DWORD WINAPI WorkerThread(LPVOID lpParam)
         iResult = RecieveMessageFromServer(message);
         if (iResult > 0)
         {
+            if (message.length() >= g_userNickname.length() &&
+                message.substr(0, g_userNickname.length()) == g_userNickname)
+            {
+                message.replace(0, g_userNickname.length(), "You");
+            }
             AppendText(g_hEditRecv, message + "\r\n");
             OutputDebugStringA(message.c_str());
         }
