@@ -138,7 +138,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     HMENU hMenu = CreateMenu();
     AppendMenu(hMenu, MF_STRING, IDM_SETTINGS, L"Settings");
-    AppendMenu(hMenu, MF_STRING, IDM_ABOUT, L"About");
     SetMenu(hwnd, hMenu);
 
     ShowWindow(hwnd, nCmdShow);
