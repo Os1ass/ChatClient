@@ -211,14 +211,25 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         case 2: //connect button
         {
             if (g_workerThread == INVALID_HANDLE_VALUE)
+            {
                 ConnectToServer();
+            }
             else
+            {
                 AppendText(g_hEditRecv, "You are already connected to server.\r\n");
+            }
             return FALSE;
         }
         case 3: //disconnect button
         {
-            DisconnectFromServer();
+            if (g_workerThread == INVALID_HANDLE_VALUE)
+            {
+                AppendText(g_hEditRecv, "Not connected to server.\r\n");
+            }
+            else
+            {
+                DisconnectFromServer();
+            }
             return FALSE;
         }
         case IDM_SETTINGS:
